@@ -227,3 +227,445 @@ The root cause is usually an **unsafe external interaction combined with state t
 ```
 
 This follows the **Checks → Effects → Interactions (CEI)** pattern and prevents the attacker from repeatedly withdrawing against the same unchanged balance.
+
+
+# Access Control Security Notes
+
+## 1. Missing Access Control
+
+A **missing access control vulnerability** occurs when a sensitive function can be called by an unauthorized account because the contract does not properly verify **who is allowed to perform the operation**.
+
+The vulnerability commonly affects functions that can:
+
+* Transfer ownership
+* Withdraw funds
+* Mint or burn tokens
+* Change protocol configuration
+* Update prices or oracles
+* Pause or unpause contracts
+* Upgrade implementations
+* Modify critical accounting
+
+The key issue is:
+
+> **The contract performs a privileged state-changing operation without verifying that `msg.sender` has the required authority.**
+
+### Example
+
+Suppose a vault has an `owner` variable and exposes:
+
+```text
+transferOwnership()
+withdraw()
+```
+
+If neither function checks whether the caller is authorized, the existence of the `owner` variable provides no actual security.
+
+### Attack Flow
+
+```text
+                    Attacker
+                       |
+                       | calls privileged function
+                       ↓
+                 Vulnerable Contract
+                       |
+                       | missing authorization check
+                       ↓
+              privileged operation
+                       |
+             ┌─────────┴─────────┐
+             ↓                   ↓
+      Change ownership      Withdraw funds
+             |                   |
+             ↓                   ↓
+       Attacker becomes      Vault loses
+            owner              ETH
+```
+
+### Common Examples
+
+```text
+Missing authorization
+        ↓
+┌─────────────────────────────────┐
+│ mint()                          │
+│ burn()                          │
+│ withdraw()                      │
+│ transferOwnership()             │
+│ setPrice()                      │
+│ setOracle()                     │
+│ pause()                         │
+│ upgrade()                       │
+└─────────────────────────────────┘
+        ↓
+Unauthorized state change
+```
+
+### Example: Unauthorized Minting
+
+If `mint()` does not restrict the caller:
+
+```text
+Attacker
+   |
+   | mint(Attacker, largeAmount)
+   ↓
+Token Contract
+   |
+   | no authorization check
+   ↓
+Tokens created
+   |
+   ↓
+Attacker receives unbacked tokens
+```
+
+If another protocol treats those tokens as having economic value, the attacker may use them to extract real assets.
+
+### Example: Unauthorized Burning
+
+If `burn(account, amount)` does not verify authorization:
+
+```text
+Attacker
+   |
+   | burn(Victim, amount)
+   ↓
+Token Contract
+   |
+   | no authorization check
+   ↓
+Victim balance decreases
+```
+
+The attacker does not need to own the victim's tokens if the token contract incorrectly allows arbitrary callers to burn them.
+
+### Example: Unauthorized Withdrawal
+
+```text
+Attacker
+   |
+   | withdraw()
+   ↓
+Vault
+   |
+   | no owner check
+   ↓
+Vault ETH transferred
+   |
+   ↓
+Attacker receives funds
+```
+
+### Root Cause
+
+The root cause is:
+
+> **A privileged capability exists without an enforced authorization boundary.**
+
+A useful audit question is:
+
+> **Who should be able to call this function, and where is that restriction enforced?**
+
+Do not assume that the presence of an `owner`, `admin`, or `role` variable automatically provides access control.
+
+The authorization must be enforced on the sensitive state transition itself.
+
+---
+
+## 2. Role-Based Access Control (RBAC)
+
+**Role-Based Access Control (RBAC)** restricts sensitive operations according to explicitly defined roles rather than giving every privileged operation to a single owner.
+
+Instead of:
+
+```text
+Owner
+  |
+  ├── mint
+  ├── burn
+  ├── pause
+  ├── upgrade
+  └── change configuration
+```
+
+RBAC can separate privileges:
+
+```text
+                    Admin
+                      |
+          ┌───────────┼───────────┐
+          ↓           ↓           ↓
+       MINTER       BURNER      PAUSER
+          |           |           |
+          ↓           ↓           ↓
+        mint()      burn()      pause()
+```
+
+The key idea is:
+
+> **An account should receive only the permissions required to perform its intended responsibilities.**
+
+### Example Role Model
+
+```text
+ADMIN_ROLE
+    |
+    ├── manages roles
+    |
+    ├────────→ MINTER_ROLE
+    |              |
+    |              ↓
+    |            mint()
+    |
+    ├────────→ BURNER_ROLE
+    |              |
+    |              ↓
+    |            burn()
+    |
+    └────────→ PAUSER_ROLE
+                   |
+                   ↓
+                 pause()
+```
+
+For a protocol with a shop/vault contract:
+
+```text
+Admin
+  |
+  | grants SHOP_ROLE
+  ↓
+Shop / Vault
+  |
+  ├── mint()
+  └── burn()
+```
+
+Users should not automatically receive `SHOP_ROLE`.
+
+### Authorized Flow
+
+```text
+Admin
+  |
+  | grant SHOP_ROLE
+  ↓
+Shop Contract
+  |
+  | mint()
+  ↓
+Token Contract
+  |
+  | verify SHOP_ROLE
+  ↓
+Mint succeeds
+```
+
+### Unauthorized Flow
+
+```text
+Attacker
+   |
+   | mint()
+   ↓
+Token Contract
+   |
+   | check SHOP_ROLE
+   ↓
+No role
+   |
+   ↓
+Transaction reverts
+```
+
+### Why RBAC Is Useful
+
+RBAC provides **least-privilege authorization**.
+
+For example:
+
+```text
+MINTER
+   ↓
+Can mint
+
+BURNER
+   ↓
+Can burn
+
+PAUSER
+   ↓
+Can pause
+
+UPGRADER
+   ↓
+Can upgrade
+```
+
+A minter does not automatically need permission to upgrade the entire protocol.
+
+This reduces the number of capabilities available to each account.
+
+---
+
+## 3. Role Administration Is Also an Attack Surface
+
+RBAC introduces another important security boundary:
+
+> **Who can grant, revoke, or administer a role?**
+
+Consider:
+
+```text
+Attacker
+   |
+   | obtains role-admin privilege
+   ↓
+Role Manager
+   |
+   | grantRole(MINTER_ROLE, attacker)
+   ↓
+Attacker
+   |
+   ↓
+mint()
+```
+
+The token's `mint()` function may correctly check `MINTER_ROLE`, but the system is still vulnerable if an unauthorized account can obtain that role.
+
+Therefore, when auditing RBAC, do not only inspect:
+
+```text
+hasRole(MINTER_ROLE, msg.sender)
+```
+
+Also inspect:
+
+```text
+Who can grant MINTER_ROLE?
+Who can revoke MINTER_ROLE?
+Who administers that role?
+Who can change the role administrator?
+Can an existing role grant a more powerful role?
+Can roles be escalated?
+```
+
+### Role Escalation
+
+A common privilege-escalation pattern is:
+
+```text
+Low-Privilege Role
+        |
+        | can modify role administration
+        ↓
+Higher-Privilege Role
+        |
+        ↓
+Admin / Upgrader
+        |
+        ↓
+Complete protocol control
+```
+
+The important audit principle is:
+
+> **A role is only as secure as the mechanism that controls who receives that role.**
+
+---
+
+## 4. Ownership vs Role-Based Access Control
+
+Ownership provides a relatively simple authorization model:
+
+```text
+Owner
+  |
+  └── privileged functions
+```
+
+RBAC separates privileges:
+
+```text
+Admin
+ |
+ ├── Minter
+ ├── Burner
+ ├── Pauser
+ └── Upgrader
+```
+
+### Ownership
+
+Useful when:
+
+```text
+One trusted authority
+        ↓
+controls protocol
+```
+
+### RBAC
+
+Useful when:
+
+```text
+Multiple responsibilities
+        ↓
+different permissions
+        ↓
+least privilege
+```
+
+The important security question is not:
+
+> **"Should I use Ownable or AccessControl?"**
+
+Instead ask:
+
+> **"What capabilities exist, who needs each capability, and how is that authority granted and revoked?"**
+
+---
+
+## 5. Access-Control Audit Checklist
+
+When auditing access control, identify every sensitive function:
+
+```text
+mint()
+burn()
+withdraw()
+pause()
+unpause()
+upgrade()
+initialize()
+setOracle()
+setPrice()
+setFee()
+setTreasury()
+transferOwnership()
+grantRole()
+revokeRole()
+```
+
+For each function ask:
+
+```text
+Who can call it?
+        ↓
+Who should call it?
+        ↓
+Where is authorization checked?
+        ↓
+What capability does it provide?
+        ↓
+What state can it modify?
+        ↓
+Can another function achieve the same result?
+        ↓
+Can privileges be escalated?
+        ↓
+Who controls the authorization mechanism?
+```
