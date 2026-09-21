@@ -1,66 +1,99 @@
-## Foundry
+# Solidity Security Lab
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Hands-on Solidity smart contract security research and experimentation using **Foundry**.
 
-Foundry consists of:
+This repository contains vulnerable smart contracts, exploit Proofs of Concept (PoCs), Foundry tests, security findings, and mitigation analysis.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## 🎯 Goals
 
-## Documentation
+* Understand common smart contract vulnerabilities
+* Build practical exploit PoCs
+* Write adversarial Foundry tests
+* Analyze vulnerability impact and root causes
+* Study and implement security mitigations
+* Develop practical smart contract auditing skills
 
-https://book.getfoundry.sh/
+## 🏗️ Structure
 
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```text
+solidity-security-lab/
+│
+├── src/          # Vulnerable and fixed contracts
+├── test/         # Exploit PoCs and security tests
+├── findings/     # Security findings and reports
+├── notes.md      # Security research notes
+│
+├── foundry.toml
+├── Makefile
+└── README.md
 ```
 
-### Test
+## 🧰 Tools
 
-```shell
-$ forge test
+* Solidity
+* Foundry
+* OpenZeppelin Contracts
+* GitHub Actions
+
+## 🔬 Approach
+
+Each vulnerability is studied through:
+
+```text
+Understand
+    ↓
+Identify
+    ↓
+Exploit
+    ↓
+Test
+    ↓
+Document
+    ↓
+Mitigate
 ```
 
-### Format
+The goal is to reproduce vulnerabilities in a controlled environment and understand their underlying security assumptions rather than only learning vulnerability definitions.
 
-```shell
-$ forge fmt
+## ▶️ Getting Started
+
+Clone the repository:
+
+```bash
+git clone https://github.com/abhiblock-96/solidity-security-lab.git
+cd solidity-security-lab
 ```
 
-### Gas Snapshots
+Install dependencies:
 
-```shell
-$ forge snapshot
+```bash
+forge install
 ```
 
-### Anvil
+Build:
 
-```shell
-$ anvil
+```bash
+forge build
 ```
 
-### Deploy
+Run tests:
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+```bash
+forge test
 ```
 
-### Cast
+Run tests with traces:
 
-```shell
-$ cast <subcommand>
+```bash
+forge test -vvvv
 ```
 
-### Help
+## ⚠️ Disclaimer
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+This repository is intended for **educational and defensive security research purposes**.
+
+The vulnerable contracts are intentionally insecure and should not be deployed with real funds or used against systems without authorization.
+
+---
+
+*This repository is actively evolving as I continue studying and researching smart contract security.*
