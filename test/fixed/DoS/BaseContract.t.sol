@@ -1,0 +1,33 @@
+//SPDX-License-Identifier: MIT
+pragma solidity ^0.8.4;
+
+import {Test} from "forge-std/Test.sol";
+import {GasBasedFixed} from "src/fixed/DoS/GasBasedFixed.sol";
+import {RevertBasedFixed, RevertBasedAttacker} from "src/fixed/DoS/RevertBasedFixed.sol";
+
+contract BaseContract is Test {
+    GasBasedFixed internal gasBased;
+
+    RevertBasedFixed internal revertBased;
+    RevertBasedAttacker internal revertAttacker;
+
+    address internal user = makeAddr("user");
+    address internal user2 = makeAddr("user2");
+    address internal attacker = makeAddr("attacker");
+
+    function setUp() external {
+        gasBased = new GasBasedFixed();
+
+        revertBased = new RevertBasedFixed();
+        revertAttacker = new RevertBasedAttacker(address(revertBased));
+
+        vm.deal(user, 2 ether);
+        vm.deal(user2, 2 ether);
+        vm.deal(attacker, 2 ether);
+    }
+
+    function _enter(address account) internal {
+        vm.prank(account);
+        revertBased.enter{value: 1 ether}();
+    }
+}
