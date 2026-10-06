@@ -148,13 +148,13 @@ function test_RevertBasedExploit_MaliciousRecipientCausesDistributionDoS()
     _enter(user);
 
     vm.prank(attacker);
-    revertAttacker.attack{value: 5e17}();
+    revertAttacker.deposit{value: 5e17}();
 
     _enter(user2);
 
     vm.prank(attacker);
     vm.expectRevert(RevertBasedExploit.TransferFailed.selector);
-    revertBased.distribute();
+    revertAttacker.attack();
 
     assertEq(
         revertBased.balances(address(revertAttacker)),
