@@ -65,4 +65,27 @@ contract DoSFixedTest is BaseContract {
         // Verify user2's balance has been cleared
         assertEq(revertBased.balances(user2), 0);
     }
+
+    /// @notice Verifies that forced ETH does not prevent the owner from withdrawing recorded deposits.
+    /// @dev Two users deposit ETH, then the attacker forces additional ETH into the vault.
+    ///      The owner must still be able to withdraw all recorded deposits despite the balance mismatch.
+    ///      The forced ETH remains in the vault after the withdrawal.
+    function test_EthMishandlingFixed_ForcedEtherDoesNotBlockWithdrawal() external {
+        vm.prank(user);
+        mishandlingVault.deposit{value: 1 ether}();
+
+        vm.prank(user2);
+        mishandlingVault.deposit{value: 1 ether}();
+
+        // Attacker forces ETH into the vault without using deposit().
+        vm.deal(attacker, 0.1 ether);
+        vm.prank(attacker);
+        mishandlingAttacker.attack{value: 0.1 ether}();
+
+        // Owner can withdraw recorded deposits despite the balance mismatch.
+        vm.prank(owner);
+        mishandlingVault.withdraw();
+
+        assertEq(address(mishandlingVault).balance, 0.1 ether);
+    }
 }

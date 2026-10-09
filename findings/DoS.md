@@ -102,7 +102,7 @@ mapping(address => bool) public hasEntered;
 ```
 
 This changes the membership-checking operation from an O(n) linear scan to an approximately O(1) lookup, preventing gas consumption from increasing proportionally with the number of players.
-<br>
+<hr>
 
 ## [H-2] Revert-Based Denial of Service (DoS) due to Malicious Attacker
 
@@ -174,3 +174,50 @@ The attacker contract intentionally reverts when receiving Ether. Consequently, 
 Use a **pull-payment pattern instead of a push-payment pattern**, allowing each player to independently withdraw their balance.
 
 Alternatively, failed transfers can be recorded for later withdrawal rather than reverting the entire distribution.
+
+<hr>
+
+## [H-3] Mishandling of ETH Causes Withdrawal Denial of Service
+
+### Description
+
+The `withdraw()` function requires `totalDeposit` to equal `address(this).balance`. An attacker can force ETH into the vault without calling `deposit()`, causing a mismatch and making withdrawals revert.
+
+<details>
+<summary>vulnerable code </summary>
+
+```Solidity
+function withdraw() external onlyOwner {
+    uint256 amount = totalDeposit;
+    if (amount == address(this).balance) {
+        totalDeposit = 0;
+        (bool success,) = payable(owner).call{value: amount}("");
+        if (!success) {
+            revert TransferFailed();
+        }
+    } else {
+        revert NoWithdrawPossible();
+    }
+}
+```
+</details>
+
+### Impact
+
+This vulnerability allows an attacker to disrupt the vault's withdrawal mechanism without requiring any privileged permissions. Once forced ETH creates a mismatch between the vault's actual balance and its recorded deposits, the owner cannot withdraw the funds through the existing `withdraw()` function.
+
+As a result, legitimate deposits may remain locked indefinitely unless the contract provides an alternative recovery mechanism. This can compromise the availability of deposited funds and disrupt the intended operation of the vault.
+
+### Proof of Concept
+
+1. Users deposit a total of 2 ETH.
+2. The attacker forces 0.1 ETH into the vault.
+3. The vault balance becomes 2.1 ETH, while `totalDeposit` remains 2 ETH.
+4. The owner's withdrawal reverts due to the strict equality check.
+
+Check for PoC  ` test/exploit/DoS/DoSExploitTest.t.sol:DoSExploitTest: test_EthMishandlinExploit_MaliciousAttackerHaltWithdraw()`
+
+### Mitigation
+
+Remove the strict equality check between `totalDeposit` and `address(this).balance`. Use internal accounting to determine withdrawal amounts and ensure forced ETH cannot block legitimate withdrawals.
+

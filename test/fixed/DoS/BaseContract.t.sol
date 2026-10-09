@@ -5,12 +5,18 @@ import {Test} from "forge-std/Test.sol";
 import {GasBasedFixed} from "src/fixed/DoS/GasBasedFixed.sol";
 import {RevertBasedFixed, RevertBasedAttacker} from "src/fixed/DoS/RevertBasedFixed.sol";
 
+import {EthMishandlingVault, EthMishandlingAttacker} from "src/fixed/DoS/EthMishandlingFixed.sol";
+
 contract BaseContract is Test {
     GasBasedFixed internal gasBased;
 
     RevertBasedFixed internal revertBased;
     RevertBasedAttacker internal revertAttacker;
 
+    EthMishandlingVault internal mishandlingVault;
+    EthMishandlingAttacker internal mishandlingAttacker;
+
+    address internal owner = makeAddr("owner");
     address internal user = makeAddr("user");
     address internal user2 = makeAddr("user2");
     address internal attacker = makeAddr("attacker");
@@ -20,6 +26,10 @@ contract BaseContract is Test {
 
         revertBased = new RevertBasedFixed();
         revertAttacker = new RevertBasedAttacker(address(revertBased));
+
+        vm.prank(owner);
+        mishandlingVault = new EthMishandlingVault();
+        mishandlingAttacker = new EthMishandlingAttacker(address(mishandlingVault));
 
         vm.deal(user, 2 ether);
         vm.deal(user2, 2 ether);
